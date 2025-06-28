@@ -90,6 +90,10 @@ export const getComments = (songId) => {
   return api.get(`/songs/${songId}/comments`);
 };
 
+export const getUserComments = () => {
+  return api.get("/comments/user");
+};
+
 export const addComment = (songId, content) => {
   return api.post(`/songs/${songId}/comments`, { content });
 };

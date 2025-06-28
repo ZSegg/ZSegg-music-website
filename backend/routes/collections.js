@@ -39,7 +39,71 @@ router.get("/", auth, async (req, res) => {
                WHEN c.type = 'ALBUM' THEN a.img
                WHEN c.type = 'SINGER' THEN sg.avatar
                WHEN c.type = 'PLAYLIST' THEN p.img
-             END as item_img
+             END as item_img,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.audio_url
+               ELSE NULL
+             END as audio_url,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.id
+               ELSE NULL
+             END as song_id,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.name
+               ELSE NULL
+             END as song_name,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.composer
+               ELSE NULL
+             END as composer,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.lyricist
+               ELSE NULL
+             END as lyricist,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.lyrics
+               ELSE NULL
+             END as lyrics,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.singer_id
+               ELSE NULL
+             END as singer_id,
+             CASE 
+               WHEN c.type = 'SONG' THEN sg.name
+               ELSE NULL
+             END as singer_name,
+             CASE 
+               WHEN c.type = 'SONG' THEN sg.avatar
+               ELSE NULL
+             END as singer_avatar,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.album_id
+               ELSE NULL
+             END as album_id,
+             CASE 
+               WHEN c.type = 'SONG' THEN a.name
+               ELSE NULL
+             END as album_name,
+             CASE 
+               WHEN c.type = 'SONG' THEN a.img
+               ELSE NULL
+             END as album_img,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.category_id
+               ELSE NULL
+             END as category_id,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.duration
+               ELSE NULL
+             END as duration,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.hot
+               ELSE NULL
+             END as hot,
+             CASE 
+               WHEN c.type = 'SONG' THEN s.cover_url
+               ELSE NULL
+             END as cover_url
       FROM collect c
       LEFT JOIN sing s ON c.type = 'SONG' AND c.rel_id = s.id
       LEFT JOIN album a ON (c.type = 'ALBUM' AND c.rel_id = a.id) OR (c.type = 'SONG' AND s.album_id = a.id)
@@ -148,7 +212,7 @@ router.post("/", auth, async (req, res) => {
     }
 
     // 添加收藏
-    await pool.execute(
+    const [result] = await pool.execute(
       "INSERT INTO collect (user_id, rel_id, time, type) VALUES (?, ?, ?, ?)",
       [userId, relId, new Date().toISOString().split("T")[0], type]
     );
@@ -156,6 +220,12 @@ router.post("/", auth, async (req, res) => {
     res.json({
       success: true,
       message: "收藏成功",
+      data: {
+        id: result.insertId,
+        rel_id: relId,
+        type: type,
+        time: new Date().toISOString().split("T")[0],
+      },
     });
   } catch (error) {
     console.error("添加收藏错误:", error);

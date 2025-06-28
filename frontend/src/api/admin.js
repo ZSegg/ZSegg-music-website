@@ -9,6 +9,14 @@ export const adminLogin = (data) => {
   });
 };
 
+// 获取管理员信息
+export const getAdminInfo = () => {
+  return request({
+    url: "/admin/profile",
+    method: "get",
+  });
+};
+
 // 获取统计数据
 export const getAdminStats = () => {
   return request({

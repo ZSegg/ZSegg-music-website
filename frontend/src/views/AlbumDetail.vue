@@ -139,7 +139,6 @@ const playerStore = usePlayerStore();
 const userStore = useUserStore();
 
 const album = ref(null);
-const isCollected = ref(false);
 const loading = ref(false);
 
 const playlistDialogVisible = ref(false);
@@ -149,6 +148,10 @@ const songToAdd = ref(null);
 
 const albumId = computed(() => route.params.id);
 
+const isCollected = computed(() => {
+  return userStore.isCollected(albumId.value, "ALBUM");
+});
+
 const fetchAlbum = async () => {
   loading.value = true;
   try {
@@ -156,24 +159,9 @@ const fetchAlbum = async () => {
     album.value = res.data;
   } catch (error) {
     console.error("获取专辑详情失败:", error);
-    album.value = null;
     ElMessage.error("获取专辑详情失败");
   } finally {
     loading.value = false;
-  }
-};
-
-const fetchCollectStatus = async () => {
-  if (!userStore.isLoggedIn) {
-    isCollected.value = false;
-    return;
-  }
-  try {
-    const res = await getCollections("ALBUM");
-    isCollected.value = res.data.some((item) => item.rel_id == albumId.value);
-  } catch (error) {
-    console.error("获取收藏状态失败:", error);
-    isCollected.value = false;
   }
 };
 
@@ -201,17 +189,25 @@ const toggleCollect = async () => {
 
   try {
     if (isCollected.value) {
-      const res = await getCollections("ALBUM");
-      const collect = res.data.find((item) => item.rel_id == albumId.value);
-      if (collect) {
-        await removeCollection(collect.id);
-        isCollected.value = false;
+      // 取消收藏
+      const collection = userStore.collections.find(
+        (c) => c.rel_id == albumId.value && c.type === "ALBUM"
+      );
+      if (collection) {
+        await removeCollection(collection.id);
+        userStore.removeFromCollections(collection.id);
         ElMessage.success("已取消收藏");
       }
     } else {
-      await addCollection({ relId: albumId.value, type: "ALBUM" });
-      isCollected.value = true;
-      ElMessage.success("收藏成功");
+      // 添加收藏
+      const response = await addCollection({ 
+        relId: albumId.value, 
+        type: "ALBUM" 
+      });
+      if (response.success) {
+        userStore.addToCollections(response.data);
+        ElMessage.success("收藏成功");
+      }
     }
   } catch (error) {
     console.error("收藏操作失败:", error);
@@ -255,9 +251,12 @@ const handleAddToPlaylist = async () => {
   }
 };
 
-onMounted(() => {
-  fetchAlbum();
-  fetchCollectStatus();
+onMounted(async () => {
+  await fetchAlbum();
+  // 如果用户已登录，加载收藏信息
+  if (userStore.isLoggedIn) {
+    await userStore.loadCollections();
+  }
 });
 </script>
 

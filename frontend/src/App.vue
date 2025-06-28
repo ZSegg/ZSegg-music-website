@@ -6,7 +6,18 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
+import { useUserStore } from './stores/user';
 import Player from './components/Player.vue';
+
+const userStore = useUserStore();
+
+onMounted(async () => {
+  // 页面加载时自动加载用户/管理员信息
+  if (userStore.token) {
+    await userStore.loadUserInfo();
+  }
+});
 </script>
 
 <style>

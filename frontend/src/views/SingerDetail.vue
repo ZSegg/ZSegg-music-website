@@ -100,7 +100,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
 import { useUserStore } from '../stores/user'
-import { getSingerById, getCollections, addCollection, removeCollection } from '../api/music'
+import { getSingerById, addCollection, removeCollection } from '../api/music'
 import { ElMessage } from 'element-plus'
 import { getImageUrl, handleImageError } from '../utils/image'
 import { formatDuration } from '../utils/format'
@@ -112,9 +112,12 @@ const playerStore = usePlayerStore()
 const userStore = useUserStore()
 
 const singer = ref(null)
-const isCollected = ref(false)
 
 const singerId = computed(() => route.params.id)
+
+const isCollected = computed(() => {
+  return userStore.isCollected(singerId.value, "SINGER");
+});
 
 const fetchSinger = async () => {
   try {
@@ -122,19 +125,6 @@ const fetchSinger = async () => {
     singer.value = res.data
   } catch (error) {
     singer.value = null
-  }
-}
-
-const fetchCollectStatus = async () => {
-  if (!userStore.isLoggedIn) {
-    isCollected.value = false
-    return
-  }
-  try {
-    const res = await getCollections('SINGER')
-    isCollected.value = res.data.some(item => item.rel_id == singerId.value)
-  } catch {
-    isCollected.value = false
   }
 }
 
@@ -148,32 +138,41 @@ const toggleCollect = async () => {
     router.push('/login')
     return
   }
-  if (isCollected.value) {
-    try {
-      const res = await getCollections('SINGER')
-      const collect = res.data.find(item => item.rel_id == singerId.value)
-      if (collect) {
-        await removeCollection(collect.id)
-        isCollected.value = false
+  
+  try {
+    if (isCollected.value) {
+      // 取消收藏
+      const collection = userStore.collections.find(
+        (c) => c.rel_id == singerId.value && c.type === "SINGER"
+      );
+      if (collection) {
+        await removeCollection(collection.id)
+        userStore.removeFromCollections(collection.id)
         ElMessage.success('已取消收藏')
       }
-    } catch {
-      ElMessage.error('操作失败')
+    } else {
+      // 添加收藏
+      const response = await addCollection({ 
+        relId: singerId.value, 
+        type: 'SINGER' 
+      });
+      if (response.success) {
+        userStore.addToCollections(response.data);
+        ElMessage.success('收藏成功')
+      }
     }
-  } else {
-    try {
-      await addCollection({ relId: singerId.value, type: 'SINGER' })
-      isCollected.value = true
-      ElMessage.success('收藏成功')
-    } catch {
-      ElMessage.error('操作失败')
-    }
+  } catch (error) {
+    console.error('收藏操作失败:', error);
+    ElMessage.error('操作失败')
   }
 }
 
-onMounted(() => {
-  fetchSinger()
-  fetchCollectStatus()
+onMounted(async () => {
+  await fetchSinger()
+  // 如果用户已登录，加载收藏信息
+  if (userStore.isLoggedIn) {
+    await userStore.loadCollections();
+  }
 })
 </script>
 

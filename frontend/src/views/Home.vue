@@ -46,6 +46,11 @@
                 <div class="play-overlay">
                   <el-icon><VideoPlay /></el-icon>
                 </div>
+                <div class="collect-overlay" @click="toggleCollect(song, $event)">
+                  <el-icon :class="{ 'collected': isCollected(song.id) }">
+                    <Star />
+                  </el-icon>
+                </div>
               </div>
               <div class="song-info">
                 <h4>{{ song.name || "歌曲名称" }}</h4>
@@ -77,6 +82,11 @@
                 />
                 <div class="play-overlay">
                   <el-icon><VideoPlay /></el-icon>
+                </div>
+                <div class="collect-overlay" @click="toggleCollect(song, $event)">
+                  <el-icon :class="{ 'collected': isCollected(song.id) }">
+                    <Star />
+                  </el-icon>
                 </div>
               </div>
               <div class="song-info">
@@ -150,9 +160,6 @@
         </div>
       </template>
     </div>
-
-    <!-- 底部播放器 -->
-    <Player />
   </div>
 </template>
 
@@ -160,13 +167,16 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
-import { getHomeData, getHotSongs, getNewSongs, getHotSingers } from "../api/music";
+import { useUserStore } from "../stores/user";
+import { getHomeData, getHotSongs, getNewSongs, getHotSingers, addCollection, removeCollection } from "../api/music";
 import Header from "../components/Header.vue";
-import Player from "../components/Player.vue";
 import { getImageUrl, handleImageError, preloadImage } from "../utils/image";
+import { ElMessage } from "element-plus";
+import { VideoPlay, Star } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const playerStore = usePlayerStore();
+const userStore = useUserStore();
 
 const carouselData = ref([]);
 const hotSongs = ref([]);
@@ -190,7 +200,7 @@ const loadHomeData = async () => {
     const data = (await getHomeData()).data;
     console.log("data: ", data);
     carouselData.value = data.carousels || [];
-    hotPlaylists.value = data.hotPlaylists || [];
+    hotPlaylists.value = data.hot_playlists || [];
     console.log("carouselData.value: ", carouselData.value);
   } catch (error) {
     console.error("加载首页数据失败:", error);
@@ -227,6 +237,50 @@ const loadHotSingers = async () => {
 
 const playSong = (song) => {
   playerStore.play(song);
+};
+
+const toggleCollect = async (song, event) => {
+  event.stopPropagation(); // 阻止事件冒泡
+  
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning("请先登录");
+    router.push("/login");
+    return;
+  }
+
+  try {
+    const isCollected = userStore.isCollected(song.id, "SONG");
+    
+    if (isCollected) {
+      // 取消收藏
+      const collection = userStore.collections.find(
+        (c) => c.rel_id === song.id && c.type === "SONG"
+      );
+      if (collection) {
+        await removeCollection(collection.id);
+        userStore.removeFromCollections(collection.id);
+        ElMessage.success("取消收藏成功");
+      }
+    } else {
+      // 添加收藏
+      const response = await addCollection({
+        relId: song.id,
+        type: "SONG",
+      });
+      if (response.success) {
+        // 添加到本地收藏列表
+        userStore.addToCollections(response.data);
+        ElMessage.success("收藏成功");
+      }
+    }
+  } catch (error) {
+    console.error("收藏操作失败:", error);
+    ElMessage.error("操作失败，请重试");
+  }
+};
+
+const isCollected = (songId) => {
+  return userStore.isCollected(songId, "SONG");
 };
 
 const goToAlbum = (albumId) => {
@@ -290,8 +344,12 @@ const preloadAllImages = async () => {
   await Promise.all(preloadPromises);
 };
 
-onMounted(() => {
-  loadAllData();
+onMounted(async () => {
+  await loadAllData();
+  // 如果用户已登录且不是管理员，加载收藏信息
+  if (userStore.isLoggedIn && !userStore.isAdmin) {
+    await userStore.loadCollections();
+  }
 });
 </script>
 
@@ -404,25 +462,53 @@ onMounted(() => {
 
 .play-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.3s;
 }
 
 .song-card:hover .play-overlay {
   opacity: 1;
 }
 
-.play-overlay .el-icon {
-  font-size: 48px;
+.collect-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  opacity: 0;
+}
+
+.song-card:hover .collect-overlay {
+  opacity: 1;
+}
+
+.collect-overlay:hover {
+  background: rgba(255, 193, 7, 0.9);
+  transform: scale(1.1);
+}
+
+.collect-overlay .collected {
+  color: #ffc107;
 }
 
 .song-info {

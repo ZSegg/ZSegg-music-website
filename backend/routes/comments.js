@@ -54,10 +54,9 @@ router.get("/user", auth, async (req, res) => {
     const userId = req.user.id;
     const offset = (page - 1) * limit;
 
-    const [comments] = await pool.execute(
+    const [comments] = await pool.query(
       `
-      SELECT c.*, s.name as song_name, s.link as song_link,
-             sg.name as singer_name, a.name as album_name
+      SELECT c.*, s.name as song_name, sg.name as singer_name, a.name as album_name
       FROM comment c
       LEFT JOIN sing s ON c.sing_id = s.id
       LEFT JOIN singer sg ON s.singer_id = sg.id
@@ -69,7 +68,7 @@ router.get("/user", auth, async (req, res) => {
       [userId, parseInt(limit), offset]
     );
 
-    const [countResult] = await pool.execute(
+    const [countResult] = await pool.query(
       "SELECT COUNT(*) as total FROM comment WHERE user_id = ?",
       [userId]
     );

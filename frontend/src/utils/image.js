@@ -9,7 +9,7 @@
  */
 export const getImageUrl = (url) => {
   if (!url) return "/404.jpg";
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http") || url.startsWith("/api")) return url;
   if (url.startsWith("/")) {
     // 如果是以/uploads/开头的路径，转换为/api/uploads/
     if (url.startsWith("/uploads/")) {

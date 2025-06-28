@@ -7,6 +7,8 @@
           <img
             :src="getCoverUrl(playerStore.currentSong)"
             :alt="playerStore.currentSong.name"
+            @click="goToSongDetail"
+            class="song-cover"
           />
           <div class="song-details">
             <!-- {{ playerStore.currentSong }} -->
@@ -71,6 +73,7 @@
 
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
 import { ElMessage } from "element-plus";
 import { updatePlayCount } from "../api/music";
@@ -82,6 +85,7 @@ import {
   Microphone,
 } from "@element-plus/icons-vue";
 
+const router = useRouter();
 const playerStore = usePlayerStore();
 const audioRef = ref(null);
 const showPlayer = ref(false);
@@ -108,7 +112,7 @@ const togglePlay = async () => {
         console.error("更新播放次数失败:", error);
       }
     }
-    
+
     audioRef.value?.play();
     playerStore.resume();
   }
@@ -239,6 +243,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("mousemove", handleMouseMove);
 });
+
+const goToSongDetail = () => {
+  if (playerStore.currentSong && playerStore.currentSong.id) {
+    router.push(`/song/${playerStore.currentSong.id}`);
+  }
+};
 </script>
 
 <style scoped>
@@ -278,6 +288,13 @@ onUnmounted(() => {
   object-fit: cover;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
   border: 2px solid #f0f0f0;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.song-info img:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
 }
 
 .song-details h4 {

@@ -76,6 +76,8 @@
 <script setup>
 import { useRouter } from "vue-router";
 import { useUserStore } from "../../stores/user";
+import { onMounted } from "vue";
+import { ElMessage } from "element-plus";
 import {
   Monitor,
   VideoPlay,
@@ -88,6 +90,27 @@ import {
 
 const router = useRouter();
 const userStore = useUserStore();
+
+// 验证管理员权限
+const checkAdminAuth = () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.error("请先登录");
+    router.push("/login");
+    return false;
+  }
+  
+  if (!userStore.isAdmin) {
+    ElMessage.error("权限不足，只有管理员才能访问");
+    router.push("/");
+    return false;
+  }
+  
+  return true;
+};
+
+onMounted(() => {
+  checkAdminAuth();
+});
 
 const getCurrentPageTitle = () => {
   const routeMap = {

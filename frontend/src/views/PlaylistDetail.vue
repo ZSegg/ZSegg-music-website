@@ -142,7 +142,9 @@ const playerStore = usePlayerStore();
 const userStore = useUserStore();
 
 const playlist = ref(null);
-const isCollected = ref(false);
+const isCollected = computed(() => {
+  return userStore.isCollected(playlistId.value, "PLAYLIST");
+});
 const editDialogVisible = ref(false);
 const editForm = ref({
   name: "",
@@ -164,19 +166,6 @@ const fetchPlaylist = async () => {
   }
 };
 
-const fetchCollectStatus = async () => {
-  if (!userStore.isLoggedIn) {
-    isCollected.value = false;
-    return;
-  }
-  try {
-    const res = await getCollections("PLAYLIST");
-    isCollected.value = res.data.some((item) => item.rel_id == playlistId.value);
-  } catch {
-    isCollected.value = false;
-  }
-};
-
 const playAll = () => {
   if (playlist.value?.songs?.length > 0) {
     playerStore.setPlaylist(playlist.value.songs);
@@ -194,26 +183,32 @@ const toggleCollect = async () => {
     router.push("/login");
     return;
   }
-  if (isCollected.value) {
-    try {
-      const res = await getCollections("PLAYLIST");
-      const collect = res.data.find((item) => item.rel_id == playlistId.value);
-      if (collect) {
-        await removeCollection(collect.id);
-        isCollected.value = false;
+  
+  try {
+    if (isCollected.value) {
+      // 取消收藏
+      const collection = userStore.collections.find(
+        (c) => c.rel_id == playlistId.value && c.type === "PLAYLIST"
+      );
+      if (collection) {
+        await removeCollection(collection.id);
+        userStore.removeFromCollections(collection.id);
         ElMessage.success("已取消收藏");
       }
-    } catch {
-      ElMessage.error("操作失败");
+    } else {
+      // 添加收藏
+      const response = await addCollection({ 
+        relId: playlistId.value, 
+        type: "PLAYLIST" 
+      });
+      if (response.success) {
+        userStore.addToCollections(response.data);
+        ElMessage.success("收藏成功");
+      }
     }
-  } else {
-    try {
-      await addCollection({ relId: playlistId.value, type: "PLAYLIST" });
-      isCollected.value = true;
-      ElMessage.success("收藏成功");
-    } catch {
-      ElMessage.error("操作失败");
-    }
+  } catch (error) {
+    console.error("收藏操作失败:", error);
+    ElMessage.error("操作失败");
   }
 };
 
@@ -251,9 +246,12 @@ const removeSong = async (songId) => {
   );
 };
 
-onMounted(() => {
-  fetchPlaylist();
-  fetchCollectStatus();
+onMounted(async () => {
+  await fetchPlaylist();
+  // 如果用户已登录，加载收藏信息
+  if (userStore.isLoggedIn) {
+    await userStore.loadCollections();
+  }
   console.log("playlist: ", playlist);
 });
 </script>

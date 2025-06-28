@@ -102,6 +102,52 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// 获取当前管理员信息
+router.get("/profile", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "未提供认证令牌",
+      });
+    }
+
+    const jwt = require("jsonwebtoken");
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "your_jwt_secret_key"
+    );
+
+    const adminId = decoded.adminId;
+    const [admins] = await pool.execute("SELECT * FROM admin WHERE id = ?", [
+      adminId,
+    ]);
+
+    if (admins.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "管理员不存在",
+      });
+    }
+
+    // 返回管理员信息（不包含密码）
+    const { password, ...adminInfo } = admins[0];
+
+    res.json({
+      success: true,
+      data: adminInfo,
+    });
+  } catch (error) {
+    console.error("获取管理员信息错误:", error);
+    res.status(401).json({
+      success: false,
+      message: "认证失败",
+    });
+  }
+});
+
 // 获取统计数据
 router.get("/stats", adminAuth, async (req, res) => {
   try {

@@ -73,9 +73,10 @@
                 </div>
 
                 <div class="comment-list">
+                  <!-- {{ comments }} -->
                   <div v-for="comment in comments" :key="comment.id" class="comment-item">
                     <div class="comment-header">
-                      <span class="username">{{ comment.user?.name || "匿名用户" }}</span>
+                      <span class="username">{{ comment.name || "匿名用户" }}</span>
                       <span class="time">{{ comment.time }}</span>
                     </div>
                     <div class="comment-content">{{ comment.content }}</div>
@@ -109,8 +110,6 @@
         </div>
       </div>
     </div>
-
-    <Player />
   </div>
 </template>
 
@@ -131,7 +130,6 @@ import { getImageUrl, handleImageError } from "../utils/image";
 import { ElMessage } from "element-plus";
 import { VideoPlay, Star, House } from "@element-plus/icons-vue";
 import Header from "../components/Header.vue";
-import Player from "../components/Player.vue";
 import LyricsDisplay from "../components/LyricsDisplay.vue";
 
 const route = useRoute();
@@ -148,11 +146,7 @@ const commentContent = ref("");
 const activeTab = ref("lyrics");
 
 const isCollected = computed(() => {
-  return (
-    userStore.user &&
-    song.value &&
-    userStore.collections.some((c) => c.rel_id === song.value.id && c.type === "SONG")
-  );
+  return userStore.isCollected(song.value?.id, "SONG");
 });
 
 const loadSongDetail = async () => {
@@ -195,31 +189,38 @@ const playRelatedSong = (relatedSong) => {
 };
 
 const toggleCollect = async () => {
-  if (!userStore.user) {
+  if (!userStore.isLoggedIn) {
     ElMessage.warning("请先登录");
+    router.push("/login");
     return;
   }
 
   try {
     if (isCollected.value) {
+      // 取消收藏
       const collection = userStore.collections.find(
         (c) => c.rel_id === song.value.id && c.type === "SONG"
       );
       if (collection) {
         await removeCollection(collection.id);
+        userStore.removeFromCollections(collection.id);
         ElMessage.success("取消收藏成功");
       }
     } else {
-      await addCollection({
-        rel_id: song.value.id,
+      // 添加收藏
+      const response = await addCollection({
+        relId: song.value.id,
         type: "SONG",
       });
-      ElMessage.success("收藏成功");
+      if (response.success) {
+        // 添加到本地收藏列表
+        userStore.addToCollections(response.data);
+        ElMessage.success("收藏成功");
+      }
     }
-    // 重新加载用户收藏
-    await userStore.loadCollections();
   } catch (error) {
-    ElMessage.error("操作失败");
+    console.error("收藏操作失败:", error);
+    ElMessage.error("操作失败，请重试");
   }
 };
 
@@ -255,9 +256,13 @@ const formatDuration = (seconds) => {
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 };
 
-onMounted(() => {
-  loadSongDetail();
-  loadComments();
+onMounted(async () => {
+  await loadSongDetail();
+  await loadComments();
+  // 如果用户已登录，加载收藏信息
+  if (userStore.isLoggedIn) {
+    await userStore.loadCollections();
+  }
 });
 </script>
 

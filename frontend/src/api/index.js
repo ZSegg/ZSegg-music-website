@@ -30,9 +30,7 @@ api.interceptors.response.use(
       const { status, data } = error.response;
       switch (status) {
         case 401:
-          ElMessage.error("登录已过期，请重新登录");
-          localStorage.removeItem("token");
-          window.location.href = "/login";
+          console.warn("认证失败:", data.message);
           break;
         case 403:
           ElMessage.error("权限不足");

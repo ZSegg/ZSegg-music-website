@@ -106,6 +106,14 @@
                 <el-table-column label="操作" width="120">
                   <template #default="{ row }">
                     <el-button text type="primary" @click="playSong(row)">播放</el-button>
+                    <el-button 
+                      text 
+                      :type="isCollected(row.id) ? 'warning' : 'default'"
+                      @click="toggleCollect(row)"
+                    >
+                      <el-icon><Star /></el-icon>
+                      {{ isCollected(row.id) ? '取消收藏' : '收藏' }}
+                    </el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -248,15 +256,18 @@
 import { ref, onMounted, watch, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { usePlayerStore } from "../stores/player";
-import { search, getSearchSuggestions, getHotSearch } from "../api/music";
+import { useUserStore } from "../stores/user";
+import { search, getSearchSuggestions, getHotSearch, addCollection, removeCollection } from "../api/music";
 import Header from "../components/Header.vue";
-import { Search, VideoPlay, User, Folder, List, House } from "@element-plus/icons-vue";
+import { Search, VideoPlay, User, Folder, List, House, Star } from "@element-plus/icons-vue";
 import { getImageUrl, handleImageError } from "../utils/image";
 import { formatDuration } from "../utils/format";
+import { ElMessage } from "element-plus";
 
 const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
+const userStore = useUserStore();
 
 const searchKeyword = ref("");
 const activeTab = ref("song");
@@ -496,12 +507,61 @@ onMounted(async () => {
   // 加载搜索历史
   searchHistory.value = JSON.parse(localStorage.getItem("searchHistory") || "[]");
 
+  // 如果用户已登录，加载收藏信息
+  if (userStore.isLoggedIn) {
+    await userStore.loadCollections();
+  }
+
   // 如果URL中有搜索关键词，自动搜索
-  if (route.query.keyword) {
-    searchKeyword.value = route.query.keyword;
-    handleSearch();
+  const keyword = route.query.q;
+  if (keyword) {
+    searchKeyword.value = keyword;
+    await handleSearch();
   }
 });
+
+// 收藏功能
+const isCollected = (songId) => {
+  return userStore.isCollected(songId, "SONG");
+};
+
+const toggleCollect = async (song) => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning("请先登录");
+    router.push("/login");
+    return;
+  }
+
+  try {
+    const collected = isCollected(song.id);
+    
+    if (collected) {
+      // 取消收藏
+      const collection = userStore.collections.find(
+        (c) => c.rel_id === song.id && c.type === "SONG"
+      );
+      if (collection) {
+        await removeCollection(collection.id);
+        userStore.removeFromCollections(collection.id);
+        ElMessage.success("取消收藏成功");
+      }
+    } else {
+      // 添加收藏
+      const response = await addCollection({
+        relId: song.id,
+        type: "SONG",
+      });
+      if (response.success) {
+        // 添加到本地收藏列表
+        userStore.addToCollections(response.data);
+        ElMessage.success("收藏成功");
+      }
+    }
+  } catch (error) {
+    console.error("收藏操作失败:", error);
+    ElMessage.error("操作失败，请重试");
+  }
+};
 </script>
 
 <style scoped>

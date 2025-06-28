@@ -1,5 +1,4 @@
 const express = require("express");
-const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { body, validationResult } = require("express-validator");
 const pool = require("../config/database");
@@ -81,16 +80,13 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // 加密密码
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 创建用户
+    // 创建用户（直接存储明文密码）
     const [result] = await pool.execute(
       "INSERT INTO user (username, name, password, avatar, role, phone, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [
         username,
         name || username,
-        hashedPassword,
+        password,
         "/images/users/default.jpg",
         "USER",
         phone || "",
@@ -151,6 +147,7 @@ router.post("/login", async (req, res) => {
     }
 
     const user = users[0];
+    // 直接比较明文密码
     const isValidPassword = password === user.password;
     if (!isValidPassword) {
       console.log("用户名或密码错误");
@@ -345,12 +342,9 @@ router.put("/password", async (req, res) => {
       });
     }
 
-    // 加密新密码
-    const hashedNewPassword = newPassword;
-
     // 更新密码
     await pool.query("UPDATE user SET password = ? WHERE id = ?", [
-      hashedNewPassword,
+      newPassword,
       userId,
     ]);
 
@@ -381,7 +375,7 @@ router.post(
         });
       }
 
-      const userId = req.user.userId;
+      const userId = req.user.id;
       const avatarUrl = `/api/uploads/images/users/${req.file.filename}`;
 
       // 更新用户头像

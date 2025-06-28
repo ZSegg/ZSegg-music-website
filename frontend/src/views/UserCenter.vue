@@ -7,7 +7,7 @@
         返回首页
       </el-button>
     </div>
-    
+
     <div class="user-header">
       <div class="user-info">
         <el-avatar
@@ -59,16 +59,16 @@
               <div class="song-list">
                 <div v-for="item in songCollections" :key="item.id" class="song-item">
                   <img
-                    :src="getImageUrl(item.song?.cover_url || item.song?.album?.img)"
-                    :alt="item.song?.name"
+                    :src="getImageUrl(item.item_img)"
+                    :alt="item.item_name"
                     @error="handleImageError"
                   />
                   <div class="song-info">
-                    <h4 @click="playSong(item.song)">{{ item.song?.name }}</h4>
-                    <p>{{ item.song?.singer?.name }}</p>
+                    <h4 @click="playSong(item)">{{ item.item_name }}</h4>
+                    <p>{{ item.item_info }}</p>
                   </div>
                   <div class="actions">
-                    <el-button text @click="playSong(item.song)">播放</el-button>
+                    <el-button text @click="playSong(item)">播放</el-button>
                     <el-button text type="danger" @click="removeCollection(item.id)"
                       >取消收藏</el-button
                     >
@@ -79,15 +79,18 @@
             <el-tab-pane label="专辑" name="ALBUM">
               <el-row :gutter="20">
                 <el-col v-for="item in albumCollections" :key="item.id" :span="6">
-                  <div class="album-card" @click="$router.push(`/album/${item.rel_id}`)">
+                  <div
+                    class="album-card"
+                    @click="item.rel_id && $router.push(`/album/${item.rel_id}`)"
+                  >
                     <img
                       :src="getImageUrl(item.item_img)"
-                      :alt="item.album?.name"
+                      :alt="item.item_name"
                       @error="handleImageError"
                     />
                     <div class="album-info">
-                      <h4>{{ item.album?.name }}</h4>
-                      <p>{{ item.album?.singer?.name }}</p>
+                      <h4>{{ item.item_name }}</h4>
+                      <p>{{ item.item_info }}</p>
                     </div>
                   </div>
                 </el-col>
@@ -98,16 +101,16 @@
                 <el-col v-for="item in singerCollections" :key="item.id" :span="6">
                   <div
                     class="singer-card"
-                    @click="$router.push(`/singer/${item.singer?.id}`)"
+                    @click="item.rel_id && $router.push(`/singer/${item.rel_id}`)"
                   >
                     <img
-                      :src="getImageUrl(item.singer?.avatar)"
-                      :alt="item.singer?.name"
+                      :src="getImageUrl(item.item_img)"
+                      :alt="item.item_name"
                       @error="handleImageError"
                     />
                     <div class="singer-info">
-                      <h4>{{ item.singer?.name }}</h4>
-                      <p>{{ item.singer?.area }}</p>
+                      <h4>{{ item.item_name }}</h4>
+                      <p>{{ item.item_info }}</p>
                     </div>
                   </div>
                 </el-col>
@@ -121,8 +124,11 @@
         <div class="comment-section">
           <div v-for="comment in myComments" :key="comment.id" class="comment-item">
             <div class="comment-header">
-              <span class="song-name" @click="$router.push(`/song/${comment.song?.id}`)">
-                {{ comment.song?.name }}
+              <span
+                class="song-name"
+                @click="comment.sing_id && $router.push(`/song/${comment.sing_id}`)"
+              >
+                {{ comment.song_name }}
               </span>
               <span class="time">{{ comment.time }}</span>
             </div>
@@ -248,9 +254,12 @@ import { useUserStore } from "../stores/user";
 import {
   getPlaylists,
   createPlaylist as apiCreatePlaylist,
-  getCollections,
+  updatePlaylist,
+  deletePlaylist,
+  getCollections as apiGetCollections,
   removeCollection as apiRemoveCollection,
   getComments,
+  getUserComments,
   deleteComment as apiDeleteComment,
   updateProfile,
   changePassword as apiChangePassword,
@@ -311,13 +320,18 @@ const fetchMyPlaylists = async () => {
 
 const fetchCollections = async () => {
   try {
-    const res = await getCollections();
+    const res = await apiGetCollections();
     songCollections.value = res.data.filter((item) => item.type === "SONG");
     albumCollections.value = res.data.filter((item) => item.type === "ALBUM");
     singerCollections.value = res.data.filter((item) => item.type === "SINGER");
     console.log("songCollections.value: ", songCollections.value);
     console.log("albumCollections.value: ", albumCollections.value);
     console.log("singerCollections.value: ", singerCollections.value);
+
+    // 调试：查看第一个歌曲收藏的完整结构
+    if (songCollections.value.length > 0) {
+      console.log("第一个歌曲收藏的完整数据:", songCollections.value[0]);
+    }
   } catch (error) {
     songCollections.value = [];
     albumCollections.value = [];
@@ -327,16 +341,45 @@ const fetchCollections = async () => {
 
 const fetchMyComments = async () => {
   try {
-    const res = await getComments();
+    const res = await getUserComments();
+    console.log("comments: ", res);
     myComments.value = res.data;
   } catch (error) {
+    console.error("获取用户评论失败:", error);
     myComments.value = [];
   }
 };
 
 const playSong = (song) => {
   if (song) {
-    playerStore.play(song);
+    console.log("传入的歌曲数据:", song);
+
+    // 如果是收藏的歌曲，使用完整的歌曲数据
+    const songData = {
+      id: song.rel_id, // 使用rel_id作为歌曲ID
+      name: song.name || song.song_name,
+      audio_url: song.audio_url,
+      singer: {
+        id: song.singer_id,
+        name: song.singer_name,
+        avatar: song.singer_avatar,
+      },
+      album: {
+        id: song.album_id,
+        name: song.album_name,
+        img: song.album_img,
+      },
+      composer: song.composer,
+      lyricist: song.lyricist,
+      lyrics: song.lyrics,
+      duration: song.duration,
+      hot: song.hot,
+      cover_url: song.cover_url,
+      category_id: song.category_id,
+    };
+
+    console.log("构造的播放数据:", songData);
+    playerStore.play(songData);
   }
 };
 
@@ -468,6 +511,10 @@ const uploadAvatar = async (event) => {
 
     if (response.success) {
       editForm.value.avatar = response.url;
+      // 直接更新用户信息中的头像
+      if (userStore.user) {
+        userStore.user.avatar = response.url;
+      }
       ElMessage.success("头像上传成功");
     } else {
       throw new Error(response.message || "上传失败");
